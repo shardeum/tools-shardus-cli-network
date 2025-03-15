@@ -21,6 +21,39 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
   const instances = shell.ls('-d', `${instancesPath}/shardus-instance*`)
   let nodesToStart = num ? num : instances.length
 
+  // Helper function to determine if a process should have coverage
+  const getCoverageSettings = (processType, identifier, networkConfig) => {
+    // Return null if coverage is off or not configured
+    if (!networkConfig.coverage || networkConfig.coverage.tool === 'off') {
+      return null
+    }
+    
+    const coverageConfig = networkConfig.coverage
+    
+    // Check if this specific process should have coverage based on its type and identifier
+    let shouldInstrument = false
+    
+    switch (processType) {
+      case 'archiver':
+        shouldInstrument = coverageConfig.targets.archivers.includes(identifier)
+        break
+      case 'validator':
+        shouldInstrument = coverageConfig.targets.validators.includes(identifier)
+        break
+      case 'monitor':
+        shouldInstrument = coverageConfig.targets.monitor
+        break
+      case 'explorer':
+        shouldInstrument = coverageConfig.targets.explorer
+        break
+      default:
+        shouldInstrument = false
+    }
+    
+    // If this process should be instrumented, return the coverage settings
+    return shouldInstrument ? coverageConfig : null
+  }
+
   try {
     if (options.archivers) {
       const existingArchivers = JSON.parse(networkConfig.existingArchivers)
@@ -30,10 +63,13 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
       const existingArchiversEnv = existingArchivers.map((archiver) => `${archiver.ip}:${archiver.port}:${archiver.publicKey}`).join(',')
       // Start new archivers on ports following existingArchivers
       for (let i = 0; i < newArchiverCount; i++) {
+        const archiverIndex = i + 1 + existingArchivers.length
+        const coverageSettings = getCoverageSettings('archiver', archiverIndex, networkConfig)
+        
         await util.pm2Start(
           networkDir,
           require.resolve('@shardeum-foundation/archiver', { paths: [process.cwd()] }),
-          `archive-server-${i + 1 + existingArchivers.length}`,
+          `archive-server-${archiverIndex}`,
           {
             ARCHIVER_PORT: existingArchivers[0].port + existingArchivers.length + i,
             ARCHIVER_PUBLIC_KEY: archiverKeys[existingArchivers.length + i].publicKey,
@@ -41,7 +77,8 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
             ARCHIVER_INFO: existingArchiversEnv,
             ARCHIVER_DB: `archiver-db-${archiverKeys[existingArchivers.length + i].port}`
           },
-          pm2Args
+          pm2Args,
+          coverageSettings
         )
       }
 
@@ -58,7 +95,8 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
     // Start archiver
     if (networkConfig.startArchiver) {
       const existingArchivers = JSON.parse(networkConfig.existingArchivers)
-
+      const coverageSettings = getCoverageSettings('archiver', 1, networkConfig)
+      
       await util.pm2Start(
         networkDir,
         require.resolve('@shardeum-foundation/archiver', { paths: [process.cwd()] }),
@@ -70,7 +108,8 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
           ARCHIVER_INFO: '',
           ARCHIVER_DB: `archiver-db-${archiverKeys[0].port}`
         },
-        pm2Args
+        pm2Args,
+        coverageSettings
       )
 
       networkConfig.startArchiver = false // Prevent this code from running twice
@@ -82,6 +121,8 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
     if (networkConfig.startMonitor) {
       let existingArchivers = JSON.parse(networkConfig.existingArchivers)
       const existingArchiversEnv = existingArchivers.map((archiver) => `${archiver.ip}:${archiver.port}:${archiver.publicKey}`).join(',')
+      const coverageSettings = getCoverageSettings('monitor', true, networkConfig)
+      
       await util.pm2Start(
         networkDir,
         require.resolve("@shardeum-foundation/monitor-server", { paths: [process.cwd()] }),
@@ -93,21 +134,32 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
           NAME: "admin",
           PASSWORD: "password",
         },
-        pm2Args
+        pm2Args,
+        coverageSettings
       );
       networkConfig.startMonitor = false; // Prevent this code from running twice
     }
 
     // Start explorer
     if (networkConfig.startExplorerServer) {
-      await util.pm2Start(
-        networkDir,
-        require.resolve('explorer-server', { paths: [process.cwd()] }),
-        'explorer-server',
-        { PORT: networkConfig.explorerServerPort },
-        pm2Args
-      )
-      networkConfig.startExplorerServer = false // Prevent this code from running twice
+      try {
+        const explorerPath = require.resolve('explorer-server', { paths: [process.cwd()] })
+        const coverageSettings = getCoverageSettings('explorer', true, networkConfig)
+        
+        await util.pm2Start(
+          networkDir,
+          explorerPath,
+          'explorer-server',
+          { PORT: networkConfig.explorerServerPort },
+          pm2Args,
+          coverageSettings
+        )
+        networkConfig.startExplorerServer = false // Prevent this code from running twice
+      } catch (err) {
+        console.log(`Warning: Could not start explorer-server. It may not be installed: ${err.message}`)
+        // Set to false to avoid trying again
+        networkConfig.startExplorerServer = false
+      }
     }
     // if (networkConfig.startExplorerClient) {
     //   await util.pm2Start(networkDir, require.resolve('explorer-client', { paths: [process.cwd()] }), 'explorer-client', { PORT: networkConfig.explorerClientPort }, pm2Args)
@@ -121,10 +173,13 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
     for (let i = 0; i < nodesToStart; i++) {
       if (!networkConfig.runningPorts.includes(networkConfig.lowestPort + i)) {
         if (instances[i]) {
+          const port = networkConfig.lowestPort + i
+          const coverageSettings = getCoverageSettings('validator', port, networkConfig)
+          
           if (options?.inspect) {
-            await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, [`pm2--node-args="--inspect=127.0.0.1:${networkConfig.inspectPort + i}"`, ...pm2Args])
+            await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, [`pm2--node-args="--inspect=127.0.0.1:${networkConfig.inspectPort + i}"`, ...pm2Args], coverageSettings)
           } else {
-            await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, pm2Args)
+            await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, pm2Args, coverageSettings)
           }
           networkConfig.runningPorts.push(networkConfig.lowestPort + i)
         }
@@ -136,12 +191,14 @@ module.exports = async function (networkDir, num, type, pm2Args, options) {
 
   if (type === 'start') {
     for (let i = instances.length - num; i < instances.length; i++) {
+      const port = parseInt(instances[i].split('-').pop())
+      const coverageSettings = getCoverageSettings('validator', port, networkConfig)
+      
       if (options?.inspect) {
-        await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, [`pm2--node-args="--inspect=127.0.0.1:${networkConfig.inspectPort + i}"`, ...pm2Args])
+        await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, [`pm2--node-args="--inspect=127.0.0.1:${networkConfig.inspectPort + i}"`, ...pm2Args], coverageSettings)
       } else {
-        await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, pm2Args)
+        await util.pm2Start(networkDir, networkConfig.serverPath, path.basename(instances[i]), { BASE_DIR: instances[i] }, pm2Args, coverageSettings)
       }
-      let port = parseInt(instances[i].split('-').pop())
       networkConfig.runningPorts.push(port)
     }
   }

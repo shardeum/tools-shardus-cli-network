@@ -22,8 +22,28 @@ module.exports = {
   explorerServerAddr: '127.0.0.1',
   startExplorerServer: false,
   logSize: 10,
-  logNum: 10
+  logNum: 10,
   // explorerClientPort: 5001,
   // explorerClientAddr: '127.0.0.1',
   // startExplorerClient: true
+  
+  // Coverage configuration
+  coverage: {
+    tool: 'off',         // Coverage tool to use: 'istanbul', 'c8', or 'off'
+    outputDir: 'coverage', // Directory to store coverage reports
+    env: {
+      // Custom environment variables to apply to all coverage-enabled processes
+      // LOAD_JSON_CONFIGS: 'debug-10-nodes.config.json'
+    },
+    targets: {
+      validators: [],    // List of validator ports to instrument (e.g. [9001, 9002])
+      archivers: [],     // List of archiver indices to instrument (e.g. [1, 2])
+      monitor: false,    // Whether to instrument the monitor
+      explorer: false    // Whether to instrument the explorer
+    },
+    includeDependencies: [
+      "@shardeum-foundation/core",
+      "@shardeum-foundation/**"
+    ]
+  }
 }

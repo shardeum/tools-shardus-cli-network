@@ -6,5 +6,6 @@ module.exports = {
   clean: require('./clean'),
   config: require('./config'),
   list: require('./list'),
-  pm2: require('./pm2')
+  pm2: require('./pm2'),
+  coverage: require('./coverage')
 }

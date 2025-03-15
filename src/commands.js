@@ -98,6 +98,18 @@ const register = {
       .argument('[commands...]', 'pm2 commands to run')
       .action(actions.pm2)
   },
+  coverage(prog, namespace) {
+    prog
+      .command(`${namespace ? namespace + ' ' : ''}coverage`, 'Manage code coverage data for a test network')
+      .option('-d, --dir <network_dir>', 'The directory containing the coverage data (defaults to ./instances)')
+      .option('--tool <tool>', 'Override the coverage tool specified in the network config (istanbul or c8)')
+      .option('--outputdir <output_dir>', 'The output directory for coverage data within the network directory (defaults to coverage)')
+      .option('--global', 'Force using globally installed coverage tools (npm install -g nyc/c8)')
+      .option('--verbose', 'Show more detailed output during operations')
+      .argument('<operation>', 'Operation to perform: clean, clean-merged, merge, or status')
+      .complete(() => ['clean', 'clean-merged', 'clear', 'merge', 'status'])
+      .action(actions.coverage)
+  }
 }
 
 module.exports = register
