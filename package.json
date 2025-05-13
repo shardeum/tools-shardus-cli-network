@@ -1,6 +1,6 @@
 {
   "name": "@shardeum-foundation/tools-shardus-cli-network",
-  "version": "4.6.0-prerelease.1",
+  "version": "4.6.0",
   "description": "Tool for managing a Shardus test network",
   "main": "index.js",
   "scripts": {
