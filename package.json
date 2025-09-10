@@ -39,7 +39,7 @@
     "access": "public"
   },
   "engines": {
-    "node": "20.19.3"
+    "node": "24.7.0"
   },
   "devDependencies": {
     "@types/jest": "29.5.14",
@@ -50,12 +50,12 @@
   },
   "overrides": {
     "minimist": "1.2.6",
-    "systeminformation": "5.21.7",
+    "systeminformation": "5.27.8",
     "minimatch": "3.0.5",
     "moment": "2.29.4",
-    "follow-redirects": "1.14.8",
+    "follow-redirects": "1.15.11",
     "fast-json-patch": "3.1.1",
-    "axios": "1.6.1",
+    "axios": "1.11.0",
     "async": "2.6.4 || 3.2.2",
     "debug": "4.3.4",
     "hosted-git-info": "2.8.9",
